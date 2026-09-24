@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DompetLink — PABWE P3</title>
+
+  <!-- Tailwind CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Tabler Icons -->
+  <script src="https://unpkg.com/@tabler/icons@latest/iconfont/tabler-icons.min.js"></script>
+
+  <style>
+    html { scroll-behavior: smooth; }
+    body { font-family: 'Inter', sans-serif; }
+    .tab-panel[hidden] { display: none; }
+    .modal[hidden] { display: none; }
+  </style>
+</head>
+
+<body class="min-h-screen bg-slate-950 text-slate-100">
+  <!-- Header -->
+  <header class="border-b border-white/10 bg-slate-950/95">
+    <div class="mx-auto max-w-6xl px-4 py-6 sm:px-6">
+      <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p class="mb-1 text-sm font-semibold text-violet-400">PABWE P3</p>
+          <h1 class="text-2xl font-extrabold tracking-tight sm:text-3xl">DompetLink</h1>
+          <p class="mt-1 text-sm text-slate-400">Aplikasi DOM, Event, Validasi & localStorage.</p>
+        </div>
+        <div class="rounded-2xl border border-violet-400/20 bg-violet-500/10 px-4 py-3 text-sm text-violet-200">
+          <i class="ti ti-database"></i>
+          Data tersimpan di browser
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="mx-auto max-w-6xl px-4 py-8 sm:px-6">
+    <!-- Tab Navigation -->
+    <nav class="mb-8 grid grid-cols-3 gap-2 rounded-2xl border border-white/10 bg-slate-900 p-2" aria-label="Fitur">
+      <button data-tab="expense" class="tab-button rounded-xl px-3 py-3 text-sm font-semibold transition">
+        <i class="ti ti-wallet mr-1"></i> Expense
+      </button>
+      <button data-tab="bookmark" class="tab-button rounded-xl px-3 py-3 text-sm font-semibold transition">
+        <i class="ti ti-bookmark mr-1"></i> Bookmark
+      </button>
+      <button data-tab="quiz" class="tab-button rounded-xl px-3 py-3 text-sm font-semibold transition">
+        <i class="ti ti-brain mr-1"></i> Quiz
+      </button>
+    </nav>
+
+    <!-- ==================== EXPENSE PANEL ==================== -->
+    <section id="expense-panel" class="tab-panel space-y-6">
+      <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h2 class="text-2xl font-bold">Expense Tracker</h2>
+          <p class="text-sm text-slate-400">Kelola pemasukan dan pengeluaran secara lokal.</p>
+        </div>
+        <button id="add-expense-btn" class="rounded-xl bg-violet-600 px-4 py-2.5 text-sm font-semibold transition hover:bg-violet-500">
+          <i class="ti ti-plus"></i> Tambah Transaksi
+        </button>
+      </div>
+
+      <!-- Summary -->
+      <div class="grid gap-4 md:grid-cols-3">
+        <div class="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-5">
+          <p class="text-sm text-emerald-300">Pemasukan</p>
+          <p id="income-total" class="mt-2 text-2xl font-bold">Rp0</p>
+        </div>
+        <div class="rounded-2xl border border-rose-400/20 bg-rose-500/10 p-5">
+          <p class="text-sm text-rose-300">Pengeluaran</p>
+          <p id="expense-total" class="mt-2 text-2xl font-bold">Rp0</p>
+        </div>
+        <div class="rounded-2xl border border-violet-400/20 bg-violet-500/10 p-5">
+          <p class="text-sm text-violet-300">Saldo</p>
+          <p id="balance-total" class="mt-2 text-2xl font-bold">Rp0</p>
+        </div>
+      </div>
+
+      <!-- Search/filter/sort -->
+      <div class="grid gap-3 rounded-2xl border border-white/10 bg-slate-900 p-4 md:grid-cols-4">
+        <input id="expense-search" type="search" placeholder="Cari judul/kategori..."
+          class="rounded-xl border border-white/10 bg-slate-800 px-4 py-3 text-sm outline-none focus:border-violet-500">
+        <select id="expense-type-filter" class="rounded-xl border border-white/10 bg-slate-800 px-4 py-3 text-sm outline-none focus:border-violet-500">
+          <option value="all">Semua tipe</option>
+          <option value="Pemasukan">Pemasukan</option>
+          <option value="Pengeluaran">Pengeluaran</option>
+        </select>
+        <select id="expense-category-filter" class="rounded-xl border border-white/10 bg-slate-800 px-4 py-3 text-sm outline-none focus:border-violet-500">
+          <option value="all">Semua kategori</option>
+        </select>
+        <select id="expense-sort" class="rounded-xl border border-white/10 bg-slate-800 px-4 py-3 text-sm outline-none focus:border-violet-500">
+          <option value="newest">Terbaru</option>
+          <option value="oldest">Terlama</option>
+          <option value="amount-high">Jumlah terbesar</option>
+          <option value="amount-low">Jumlah terkecil</option>
+          <option value="title-az">Judul A-Z</option>
+        </select>
+      </div>
+
+      <!-- Expense list -->
+      <div class="overflow-hidden rounded-2xl border border-white/10 bg-slate-900">
+        <div class="overflow-x-auto">
+          <table class="w-full min-w-[760px] text-left text-sm">
+            <thead class="border-b border-white/10 bg-slate-800/70 text-slate-400">
+              <tr>
+                <th class="px-5 py-4">Tanggal</th>
+                <th class="px-5 py-4">Judul</th>
+                <th class="px-5 py-4">Kategori</th>
+                <th class="px-5 py-4">Tipe</th>
+                <th class="px-5 py-4 text-right">Jumlah</th>
+                <th class="px-5 py-4 text-right">Aksi</th>
+              </tr>
+            </thead>
+            <tbody id="expense-list"></tbody>
+          </table>
+        </div>
+        <div id="expense-empty" class="hidden p-10 text-center">
+          <i class="ti ti-receipt-off text-4xl text-slate-600"></i>
+          <h3 class="mt-3 font-semibold">Belum ada transaksi</h3>
+          <p class="mt-1 text-sm text-slate-500">Tambahkan transaksi atau ubah filter pencarian.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== BOOKMARK PANEL ==================== -->
+    <section id="bookmark-panel" class="tab-panel space-y-6" hidden>
+      <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h2 class="text-2xl font-bold">Bookmark Manager</h2>
+          <p class="text-sm text-slate-400">Simpan dan kelola tautan favorit.</p>
+        </div>
+        <button id="add-bookmark-btn" class="rounded-xl bg-violet-600 px-4 py-2.5 text-sm font-semibold transition hover:bg-violet-500">
+          <i class="ti ti-plus"></i> Tambah Bookmark
+        </button>
+      </div>
+
+      <div class="grid gap-3 rounded-2xl border border-white/10 bg-slate-900 p-4 md:grid-cols-2">
+        <input id="bookmark-search" type="search" placeholder="Cari judul, URL, kategori..."
+          class="rounded-xl border border-white/10 bg-slate-800 px-4 py-3 text-sm outline-none focus:border-violet-500">
+        <select id="bookmark-sort" class="rounded-xl border border-white/10 bg-slate-800 px-4 py-3 text-sm outline-none focus:border-violet-500">
+          <option value="newest">Terbaru</option>
+          <option value="oldest">Terlama</option>
+          <option value="title-az">Judul A-Z</option>
+          <option value="title-za">Judul Z-A</option>
+        </select>
+      </div>
+
+      <div id="bookmark-list" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"></div>
+      <div id="bookmark-empty" class="hidden rounded-2xl border border-white/10 bg-slate-900 p-10 text-center">
+        <i class="ti ti-bookmarks-off text-4xl text-slate-600"></i>
+        <h3 class="mt-3 font-semibold">Belum ada bookmark</h3>
+        <p class="mt-1 text-sm text-slate-500">Tambahkan URL untuk mulai membuat koleksi.</p>
+      </div>
+    </section>
+
+    <!-- ==================== QUIZ PANEL ==================== -->
+    <section id="quiz-panel" class="tab-panel" hidden>
+      <div class="mx-auto max-w-3xl">
+        <div class="mb-6">
+          <h2 class="text-2xl font-bold">Quiz App</h2>
+          <p class="text-sm text-slate-400">Uji pemahaman tentang DOM, Event, dan localStorage.</p>
+        </div>
+
+        <!-- Quiz start -->
+        <div id="quiz-start" class="rounded-3xl border border-white/10 bg-slate-900 p-8 text-center">
+          <div class="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-violet-500/15 text-violet-400">
+            <i class="ti ti-brain text-3xl"></i>
+          </div>
+          <h3 class="mt-5 text-xl font-bold">Siap untuk quiz?</h3>
+          <p class="mx-auto mt-2 max-w-lg text-sm text-slate-400">
+            Jawab semua pertanyaan, lihat feedback, lalu simpan high score secara otomatis.
+          </p>
+          <p class="mt-4 text-sm text-slate-300">High score: <span id="start-high-score" class="font-bold text-violet-400">0</span></p>
+          <button id="start-quiz-btn" class="mt-6 rounded-xl bg-violet-600 px-6 py-3 font-semibold hover:bg-violet-500">
+            Mulai Quiz
+          </button>
+        </div>
+
+        <!-- Quiz question -->
+        <div id="quiz-question" class="hidden rounded-3xl border border-white/10 bg-slate-900 p-6 sm:p-8">
+          <div class="mb-6 flex items-center justify-between gap-4">
+            <span id="quiz-counter" class="text-sm font-semibold text-violet-400">Soal 1/5</span>
+            <span id="quiz-score" class="text-sm text-slate-400">Skor: 0</span>
+          </div>
+          <div class="mb-4 h-2 overflow-hidden rounded-full bg-slate-800">
+            <div id="quiz-progress" class="h-full rounded-full bg-violet-600 transition-all" style="width: 20%"></div>
+          </div>
+          <h3 id="question-text" class="mt-7 text-xl font-bold leading-relaxed"></h3>
+          <div id="answer-list" class="mt-6 grid gap-3"></div>
+          <div id="quiz-feedback" class="mt-5 hidden rounded-xl p-4 text-sm"></div>
+          <button id="next-question-btn" class="mt-5 hidden w-full rounded-xl bg-violet-600 px-5 py-3 font-semibold hover:bg-violet-500">
+            Soal Berikutnya
+          </button>
+        </div>
+
+        <!-- Quiz result -->
+        <div id="quiz-result" class="hidden rounded-3xl border border-white/10 bg-slate-900 p-8 text-center">
+          <div class="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-500/15 text-emerald-400">
+            <i class="ti ti-trophy text-3xl"></i>
+          </div>
+          <h3 class="mt-5 text-2xl font-bold">Quiz Selesai!</h3>
+          <p class="mt-2 text-sm text-slate-400">Skor kamu</p>
+          <p id="final-score" class="mt-2 text-5xl font-extrabold text-violet-400">0/5</p>
+          <p id="final-message" class="mt-4 text-slate-300"></p>
+          <p class="mt-3 text-sm text-slate-400">High score: <span id="final-high-score" class="font-bold text-violet-400">0</span></p>
+          <button id="restart-quiz-btn" class="mt-6 rounded-xl bg-violet-600 px-6 py-3 font-semibold hover:bg-violet-500">
+            Ulangi Quiz
+          </button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ==================== MODAL ==================== -->
+  <div id="modal" class="modal fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" hidden>
+    <div class="w-full max-w-lg rounded-3xl border border-white/10 bg-slate-900 shadow-2xl">
+      <div class="flex items-center justify-between border-b border-white/10 px-6 py-5">
+        <h3 id="modal-title" class="text-lg font-bold">Tambah Data</h3>
+        <button id="close-modal-btn" class="rounded-lg p-2 text-slate-400 hover:bg-white/5 hover:text-white" aria-label="Tutup">
+          <i class="ti ti-x text-xl"></i>
+        </button>
+      </div>
+
+      <form id="expense-form" class="space-y-4 p-6" hidden>
+        <input id="expense-id" type="hidden">
+        <div>
+          <label for="expense-title-input" class="mb-2 block text-sm font-medium">Judul</label>
+          <input id="expense-title-input" required maxlength="80" class="w-full rounded-xl border border-white/10 bg-slate-800 px-4 py-3 outline-none focus:border-violet-500" placeholder="Contoh: Gaji bulanan">
+        </div>
+        <div class="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label for="expense-category-input" class="mb-2 block text-sm font-medium">Kategori</label>
+            <input id="expense-category-input" required maxlength="40" class="w-full rounded-xl border border-white/10 bg-slate-800 px-4 py-3 outline-none focus:border-violet-500" placeholder="Makanan">
+          </div>
+          <div>
+            <label for="expense-amount-input" class="mb-2 block text-sm font-medium">Jumlah</label>
+            <input id="expense-amount-input" required min="1" step="1" type="number" class="w-full rounded-xl border border-white/10 bg-slate-800 px-4 py-3 outline-none focus:border-violet-500" placeholder="50000">
+          </div>
+        </div>
+        <div class="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label for="expense-type-input" class="mb-2 block text-sm font-medium">Tipe</label>
+            <select id="expense-type-input" class="w-full rounded-xl border border-white/10 bg-slate-800 px-4 py-3 outline-none focus:border-violet-500">
+              <option value="Pengeluaran">Pengeluaran</option>
+              <option value="Pemasukan">Pemasukan</option>
+            </select>
+          </div>
+          <div>
+            <label for="expense-date-input" class="mb-2 block text-sm font-medium">Tanggal</label>
+            <input id="expense-date-input" required type="date" class="w-full rounded-xl border border-white/10 bg-slate-800 px-4 py-3 outline-none focus:border-violet-500">
+          </div>
+        </div>
+        <p id="expense-form-error" class="hidden text-sm text-rose-400"></p>
+        <button class="w-full rounded-xl bg-violet-600 px-4 py-3 font-semibold hover:bg-violet-500">Simpan Transaksi</button>
+      </form>
+
+      <form id="bookmark-form" class="space-y-4 p-6" hidden>
+        <input id="bookmark-id" type="hidden">
+        <div>
+          <label for="bookmark-title-input" class="mb-2 block text-sm font-medium">Judul</label>
+          <input id="bookmark-title-input" required maxlength="80" class="w-full rounded-xl border border-white/10 bg-slate-800 px-4 py-3 outline-none focus:border-violet-500" placeholder="Google">
+        </div>
+        <div>
+          <label for="bookmark-url-input" class="mb-2 block text-sm font-medium">URL</label>
+          <input id="bookmark-url-input" required type="url" class="w-full rounded-xl border border-white/10 bg-slate-800 px-4 py-3 outline-none focus:border-violet-500" placeholder="https://google.com">
+        </div>
+        <div>
+          <label for="bookmark-category-input" class="mb-2 block text-sm font-medium">Kategori</label>
+          <input id="bookmark-category-input" required maxlength="40" class="w-full rounded-xl border border-white/10 bg-slate-800 px-4 py-3 outline-none focus:border-violet-500" placeholder="Referensi">
+        </div>
+        <div>
+          <label for="bookmark-note-input" class="mb-2 block text-sm font-medium">Catatan <span class="text-slate-500">(opsional)</span></label>
+          <textarea id="bookmark-note-input" rows="3" maxlength="200" class="w-full rounded-xl border border-white/10 bg-slate-800 px-4 py-3 outline-none focus:border-violet-500" placeholder="Catatan singkat..."></textarea>
+        </div>
+        <p id="bookmark-form-error" class="hidden text-sm text-rose-400"></p>
+        <button class="w-full rounded-xl bg-violet-600 px-4 py-3 font-semibold hover:bg-violet-500">Simpan Bookmark</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div id="toast" class="fixed bottom-5 right-5 z-[60] hidden max-w-sm rounded-xl border border-white/10 bg-slate-900 px-4 py-3 text-sm shadow-2xl"></div>
+
+  <script src="assets/script.js"></script>
+</body>
+</html>
