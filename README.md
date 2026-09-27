@@ -62,11 +62,3 @@ Tab aktif tidak disimpan di `localStorage`.
 Buka `index.html` langsung di browser atau gunakan Live Server pada VS Code.
 
 Internet diperlukan agar Tailwind CDN, Google Fonts, dan Tabler Icons dapat dimuat.
-
-## Performance notes
-
-- Google Fonts is loaded non-blocking with `preload` + `noscript` fallback.
-- Application JavaScript and Tabler Icons are deferred where applicable.
-- A small critical CSS block is inline so the first paint does not depend on the web font.
-- Tailwind CDN is intentionally retained because it is part of the project requirement. Lighthouse may still report Tailwind CDN as render-blocking/unused JavaScript; removing it would violate that requirement.
-- Netlify HUD cache warnings are deployment/platform resources rather than application assets.
