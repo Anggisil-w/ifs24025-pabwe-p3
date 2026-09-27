@@ -5,19 +5,30 @@
 
 document.addEventListener("DOMContentLoaded", () => {
   // ==========================================================
+  // 0. IKON (SVG inline — tidak bergantung pada font/CDN eksternal)
+  // ==========================================================
+
+  const ICONS = {
+    edit: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4" aria-hidden="true" focusable="false"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z" /><path d="m15 5 4 4" /></svg>',
+    trash: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4" aria-hidden="true" focusable="false"><path d="M10 11v6" /><path d="M14 11v6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /><path d="M3 6h18" /><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>',
+    externalLink: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4" aria-hidden="true" focusable="false"><path d="M15 3h6v6" /><path d="M10 14 21 3" /><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /></svg>'
+  };
+
+  // ==========================================================
   // 1. KONSTANTA & STATE
   // ==========================================================
 
   const STORAGE_KEYS = {
     expenses: "dompetlink_expenses_v1",
     bookmarks: "dompetlink_bookmarks_v1",
-    highScore: "dompetlink_quiz_high_score_v1"
+    highScore: "dompetlink_quiz_high_score_v1",
+    activeTab: "dompetlink_active_tab_v1"
   };
 
   const state = {
     expenses: loadData(STORAGE_KEYS.expenses, []),
     bookmarks: loadData(STORAGE_KEYS.bookmarks, []),
-    currentTab: getTabFromURL(),
+    currentTab: getInitialTab(),
     editingType: null,
     quiz: {
       currentIndex: 0,
@@ -99,6 +110,33 @@ document.addEventListener("DOMContentLoaded", () => {
   const bookmarkForm = $("#bookmark-form");
   const expenseFormError = $("#expense-form-error");
   const bookmarkFormError = $("#bookmark-form-error");
+  let lastFocusedBeforeModal = null;
+
+  // Field form Expense (di-cache sekali, dipakai berulang saat isi/baca form)
+  const expenseFields = {
+    id: $("#expense-id"),
+    title: $("#expense-title-input"),
+    category: $("#expense-category-input"),
+    amount: $("#expense-amount-input"),
+    type: $("#expense-type-input"),
+    date: $("#expense-date-input")
+  };
+
+  // Field form Bookmark (di-cache sekali, dipakai berulang saat isi/baca form)
+  const bookmarkFields = {
+    id: $("#bookmark-id"),
+    title: $("#bookmark-title-input"),
+    url: $("#bookmark-url-input"),
+    category: $("#bookmark-category-input"),
+    note: $("#bookmark-note-input")
+  };
+
+  // Modal konfirmasi hapus (dipakai bersama oleh Expense & Bookmark)
+  const confirmModal = $("#confirm-modal");
+  const confirmModalMessage = $("#confirm-modal-message");
+  const confirmModalCancel = $("#confirm-modal-cancel");
+  const confirmModalConfirm = $("#confirm-modal-confirm");
+  let pendingDeleteAction = null;
 
   // Quiz
   const quizStart = $("#quiz-start");
@@ -152,16 +190,24 @@ document.addEventListener("DOMContentLoaded", () => {
     return div.innerHTML;
   }
 
+  let toastTimeoutId = null;
+
   function showToast(message, type = "success") {
     const toast = $("#toast");
+
+    // Batalkan timer toast sebelumnya (kalau ada) supaya toast baru tidak
+    // ikut disembunyikan lebih cepat oleh timer toast yang lama.
+    clearTimeout(toastTimeoutId);
+
     toast.textContent = message;
     toast.className =
       "fixed bottom-5 right-5 z-[60] max-w-sm rounded-xl border px-4 py-3 text-sm shadow-2xl " +
       (type === "error"
         ? "border-rose-400/20 bg-rose-500/10 text-rose-200"
         : "border-emerald-400/20 bg-emerald-500/10 text-emerald-200");
+    toast.classList.remove("hidden");
 
-    setTimeout(() => {
+    toastTimeoutId = setTimeout(() => {
       toast.classList.add("hidden");
     }, 2500);
   }
@@ -170,10 +216,19 @@ document.addEventListener("DOMContentLoaded", () => {
   // 4. TAB + QUERY STRING
   // ==========================================================
 
-  function getTabFromURL() {
+  function getInitialTab() {
+    const validTabs = ["expense", "bookmark", "quiz"];
+
+    // URL query string (?tab=...) tetap didukung untuk deep-link,
+    // tapi sumber utama "tab terakhir dibuka" adalah localStorage.
     const params = new URLSearchParams(window.location.search);
-    const tab = params.get("tab");
-    return ["expense", "bookmark", "quiz"].includes(tab) ? tab : "expense";
+    const fromURL = params.get("tab");
+    if (validTabs.includes(fromURL)) return fromURL;
+
+    const fromStorage = localStorage.getItem(STORAGE_KEYS.activeTab);
+    if (validTabs.includes(fromStorage)) return fromStorage;
+
+    return "expense";
   }
 
   function setActiveTab(tab, updateURL = true) {
@@ -188,11 +243,16 @@ document.addEventListener("DOMContentLoaded", () => {
       button.classList.toggle("text-white", active);
       button.classList.toggle("text-slate-400", !active);
       button.classList.toggle("hover:bg-slate-800", !active);
+      button.setAttribute("aria-selected", String(active));
     });
 
     Object.entries(panels).forEach(([name, panel]) => {
       panel.hidden = name !== tab;
     });
+
+    // Wajib rubrik: tab terakhir disimpan ke localStorage agar
+    // pulih otomatis saat halaman di-refresh.
+    localStorage.setItem(STORAGE_KEYS.activeTab, tab);
 
     if (updateURL) {
       const url = new URL(window.location.href);
@@ -309,12 +369,14 @@ document.addEventListener("DOMContentLoaded", () => {
         <td class="px-5 py-4">
           <div class="flex justify-end gap-2">
             <button data-action="edit-expense" data-id="${item.id}"
-              class="rounded-lg p-2 text-slate-400 hover:bg-white/5 hover:text-white" title="Ubah">
-              <i class="ti ti-edit"></i>
+              class="rounded-lg p-2.5 text-slate-400 hover:bg-white/5 hover:text-white"
+              title="Ubah" aria-label="Ubah transaksi ${escapeHTML(item.title)}">
+              ${ICONS.edit}
             </button>
             <button data-action="delete-expense" data-id="${item.id}"
-              class="rounded-lg p-2 text-rose-400 hover:bg-rose-500/10" title="Hapus">
-              <i class="ti ti-trash"></i>
+              class="rounded-lg p-2.5 text-rose-400 hover:bg-rose-500/10"
+              title="Hapus" aria-label="Hapus transaksi ${escapeHTML(item.title)}">
+              ${ICONS.trash}
             </button>
           </div>
         </td>
@@ -324,6 +386,18 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     renderExpenseSummary();
+  }
+
+  // Helper generik: tampilkan modal untuk form tertentu, sembunyikan yang
+  // lain, simpan elemen fokus sebelumnya, lalu pindahkan fokus ke form.
+  // Dipakai bersama oleh openExpenseModal & openBookmarkModal supaya tidak
+  // ada kode "tampilkan/sembunyikan modal" yang diduplikasi dua kali.
+  function showModalForm(activeForm, focusField) {
+    expenseForm.hidden = activeForm !== expenseForm;
+    bookmarkForm.hidden = activeForm !== bookmarkForm;
+    lastFocusedBeforeModal = document.activeElement;
+    modal.hidden = false;
+    focusField.focus();
   }
 
   function openExpenseModal(id = null) {
@@ -336,51 +410,52 @@ document.addEventListener("DOMContentLoaded", () => {
       if (!item) return;
 
       modalTitle.textContent = "Ubah Transaksi";
-      $("#expense-id").value = item.id;
-      $("#expense-title-input").value = item.title;
-      $("#expense-category-input").value = item.category;
-      $("#expense-amount-input").value = item.amount;
-      $("#expense-type-input").value = item.type;
-      $("#expense-date-input").value = item.date;
+      expenseFields.id.value = item.id;
+      expenseFields.title.value = item.title;
+      expenseFields.category.value = item.category;
+      expenseFields.amount.value = item.amount;
+      expenseFields.type.value = item.type;
+      expenseFields.date.value = item.date;
     } else {
       modalTitle.textContent = "Tambah Transaksi";
-      $("#expense-id").value = "";
-      $("#expense-date-input").value = new Date().toISOString().slice(0, 10);
+      expenseFields.id.value = "";
+      expenseFields.date.value = new Date().toISOString().slice(0, 10);
     }
 
-    expenseForm.hidden = false;
-    bookmarkForm.hidden = true;
-    modal.hidden = false;
+    showModalForm(expenseForm, expenseFields.title);
   }
 
   function deleteExpense(id) {
     const item = state.expenses.find((expense) => expense.id === id);
     if (!item) return;
 
-    const confirmed = window.confirm(
-      `Hapus transaksi "${item.title}"?`
-    );
-
-    if (!confirmed) return;
-
-    state.expenses = state.expenses.filter((expense) => expense.id !== id);
-    saveData(STORAGE_KEYS.expenses, state.expenses);
-    renderExpenses();
-    showToast("Transaksi berhasil dihapus.");
+    openConfirmModal(`Hapus transaksi "${item.title}"? Tindakan ini tidak bisa dibatalkan.`, () => {
+      state.expenses = state.expenses.filter((expense) => expense.id !== id);
+      saveData(STORAGE_KEYS.expenses, state.expenses);
+      renderExpenses();
+      showToast("Transaksi berhasil dihapus.");
+    });
   }
 
   expenseForm.addEventListener("submit", (event) => {
     event.preventDefault();
 
-    const title = $("#expense-title-input").value.trim();
-    const category = $("#expense-category-input").value.trim();
-    const amount = Number($("#expense-amount-input").value);
-    const type = $("#expense-type-input").value;
-    const date = $("#expense-date-input").value;
-    const id = $("#expense-id").value;
+    const title = expenseFields.title.value.trim();
+    const category = expenseFields.category.value.trim();
+    const amount = Number(expenseFields.amount.value);
+    const type = expenseFields.type.value;
+    const date = expenseFields.date.value;
+    const id = expenseFields.id.value;
 
     if (!title || !category || !date) {
       expenseFormError.textContent = "Semua field wajib harus diisi.";
+      expenseFormError.classList.remove("hidden");
+      return;
+    }
+
+    if (!isValidCategory(category)) {
+      expenseFormError.textContent =
+        "Kategori 1-40 karakter, hanya huruf, angka, spasi, dan tanda baca umum ( . , & / ( ) ' - ).";
       expenseFormError.classList.remove("hidden");
       return;
     }
@@ -483,16 +558,18 @@ document.addEventListener("DOMContentLoaded", () => {
           </div>
           <div class="flex shrink-0 gap-1">
             <button data-action="edit-bookmark" data-id="${item.id}"
-              class="rounded-lg p-2 text-slate-400 hover:bg-white/5 hover:text-white" title="Ubah">
-              <i class="ti ti-edit"></i>
+              class="rounded-lg p-2.5 text-slate-400 hover:bg-white/5 hover:text-white"
+              title="Ubah" aria-label="Ubah bookmark ${escapeHTML(item.title)}">
+              ${ICONS.edit}
             </button>
             <button data-action="delete-bookmark" data-id="${item.id}"
-              class="rounded-lg p-2 text-rose-400 hover:bg-rose-500/10" title="Hapus">
-              <i class="ti ti-trash"></i>
+              class="rounded-lg p-2.5 text-rose-400 hover:bg-rose-500/10"
+              title="Hapus" aria-label="Hapus bookmark ${escapeHTML(item.title)}">
+              ${ICONS.trash}
             </button>
           </div>
         </div>
-        <p class="mt-3 break-all text-xs text-slate-500">${escapeHTML(item.url)}</p>
+        <p class="mt-3 break-all text-xs text-slate-400">${escapeHTML(item.url)}</p>
         ${
           item.note
             ? `<p class="mt-3 text-sm leading-relaxed text-slate-400">${escapeHTML(item.note)}</p>`
@@ -500,7 +577,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
         <a href="${escapeHTML(item.url)}" target="_blank" rel="noopener noreferrer"
           class="mt-5 inline-flex items-center gap-2 rounded-xl bg-violet-600 px-4 py-2 text-sm font-semibold hover:bg-violet-500">
-          Buka Link <i class="ti ti-external-link"></i>
+          Buka ${escapeHTML(item.title)} di tab baru ${ICONS.externalLink}
         </a>
       `;
 
@@ -518,19 +595,17 @@ document.addEventListener("DOMContentLoaded", () => {
       if (!item) return;
 
       modalTitle.textContent = "Ubah Bookmark";
-      $("#bookmark-id").value = item.id;
-      $("#bookmark-title-input").value = item.title;
-      $("#bookmark-url-input").value = item.url;
-      $("#bookmark-category-input").value = item.category;
-      $("#bookmark-note-input").value = item.note;
+      bookmarkFields.id.value = item.id;
+      bookmarkFields.title.value = item.title;
+      bookmarkFields.url.value = item.url;
+      bookmarkFields.category.value = item.category;
+      bookmarkFields.note.value = item.note;
     } else {
       modalTitle.textContent = "Tambah Bookmark";
-      $("#bookmark-id").value = "";
+      bookmarkFields.id.value = "";
     }
 
-    expenseForm.hidden = true;
-    bookmarkForm.hidden = false;
-    modal.hidden = false;
+    showModalForm(bookmarkForm, bookmarkFields.title);
   }
 
   function isValidHTTPURL(value) {
@@ -542,32 +617,42 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  // Dipakai bersama oleh form Expense & Bookmark: kategori 1-40 karakter,
+  // hanya huruf (termasuk non-Latin), angka, spasi, dan tanda baca umum.
+  function isValidCategory(value) {
+    return /^[\p{L}\p{N} .,&/()'-]{1,40}$/u.test(value);
+  }
+
   function deleteBookmark(id) {
     const item = state.bookmarks.find((bookmark) => bookmark.id === id);
     if (!item) return;
 
-    if (!window.confirm(`Hapus bookmark "${item.title}"?`)) return;
-
-    state.bookmarks = state.bookmarks.filter(
-      (bookmark) => bookmark.id !== id
-    );
-
-    saveData(STORAGE_KEYS.bookmarks, state.bookmarks);
-    renderBookmarks();
-    showToast("Bookmark berhasil dihapus.");
+    openConfirmModal(`Hapus bookmark "${item.title}"? Tindakan ini tidak bisa dibatalkan.`, () => {
+      state.bookmarks = state.bookmarks.filter((bookmark) => bookmark.id !== id);
+      saveData(STORAGE_KEYS.bookmarks, state.bookmarks);
+      renderBookmarks();
+      showToast("Bookmark berhasil dihapus.");
+    });
   }
 
   bookmarkForm.addEventListener("submit", (event) => {
     event.preventDefault();
 
-    const title = $("#bookmark-title-input").value.trim();
-    const url = $("#bookmark-url-input").value.trim();
-    const category = $("#bookmark-category-input").value.trim();
-    const note = $("#bookmark-note-input").value.trim();
-    const id = $("#bookmark-id").value;
+    const title = bookmarkFields.title.value.trim();
+    const url = bookmarkFields.url.value.trim();
+    const category = bookmarkFields.category.value.trim();
+    const note = bookmarkFields.note.value.trim();
+    const id = bookmarkFields.id.value;
 
     if (!title || !url || !category) {
       bookmarkFormError.textContent = "Judul, URL, dan kategori wajib diisi.";
+      bookmarkFormError.classList.remove("hidden");
+      return;
+    }
+
+    if (!isValidCategory(category)) {
+      bookmarkFormError.textContent =
+        "Kategori 1-40 karakter, hanya huruf, angka, spasi, dan tanda baca umum ( . , & / ( ) ' - ).";
       bookmarkFormError.classList.remove("hidden");
       return;
     }
@@ -628,6 +713,11 @@ document.addEventListener("DOMContentLoaded", () => {
     expenseForm.hidden = true;
     bookmarkForm.hidden = true;
     state.editingType = null;
+
+    if (lastFocusedBeforeModal && typeof lastFocusedBeforeModal.focus === "function") {
+      lastFocusedBeforeModal.focus();
+    }
+    lastFocusedBeforeModal = null;
   }
 
   $("#close-modal-btn").addEventListener("click", closeModal);
@@ -636,9 +726,70 @@ document.addEventListener("DOMContentLoaded", () => {
     if (event.target === modal) closeModal();
   });
 
+  // -------- Modal konfirmasi hapus (pengganti window.confirm) --------
+
+  function openConfirmModal(message, onConfirm) {
+    pendingDeleteAction = onConfirm;
+    confirmModalMessage.textContent = message;
+    lastFocusedBeforeModal = document.activeElement;
+    confirmModal.hidden = false;
+    confirmModalCancel.focus();
+  }
+
+  function closeConfirmModal() {
+    confirmModal.hidden = true;
+    pendingDeleteAction = null;
+
+    if (lastFocusedBeforeModal && typeof lastFocusedBeforeModal.focus === "function") {
+      lastFocusedBeforeModal.focus();
+    }
+    lastFocusedBeforeModal = null;
+  }
+
+  confirmModalCancel.addEventListener("click", closeConfirmModal);
+
+  confirmModalConfirm.addEventListener("click", () => {
+    const action = pendingDeleteAction;
+    closeConfirmModal();
+    if (typeof action === "function") action();
+  });
+
+  confirmModal.addEventListener("click", (event) => {
+    if (event.target === confirmModal) closeConfirmModal();
+  });
+
   document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && !modal.hidden) {
+    if (event.key === "Escape" && !confirmModal.hidden) {
+      closeConfirmModal();
+      return;
+    }
+
+    if (modal.hidden) return;
+
+    if (event.key === "Escape") {
       closeModal();
+      return;
+    }
+
+    if (event.key === "Tab") {
+      const focusable = modal.querySelectorAll(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      );
+      const visible = Array.from(focusable).filter(
+        (element) => element.offsetParent !== null
+      );
+      if (visible.length === 0) return;
+
+      const first = visible[0];
+      const last = visible[visible.length - 1];
+
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
     }
   });
 
